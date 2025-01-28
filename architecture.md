@@ -179,6 +179,11 @@ La **Arquitectura Basada en Eventos (EDA)** permite que los diferentes component
 La **Inteligencia Artificial (IA)** desempeñará un papel clave en la **validación, optimización y gobernanza** de la arquitectura.  
 Su propósito es garantizar que cada implementación siga los **estándares definidos** en esta documentación y que todas las **decisiones técnicas** estén alineadas con la estrategia del sistema.  
 
+**📌 Importante:**  
+🔹 **La IA no procederá con ninguna modificación o implementación si no está especificada en este documento.**  
+🔹 **Cualquier nueva implementación, mejora o modificación que no esté contemplada en este estándar requerirá aprobación formal del Comité de Arquitectura antes de su desarrollo.**  
+🔹 **Si una modificación es aprobada, la documentación de Arquitectura será actualizada para que futuras implementaciones la consideren sin necesidad de nueva validación.**  
+
 ---
 
 ### 📌 **Funciones de la IA en la arquitectura**  
@@ -205,19 +210,23 @@ Antes de desarrollar o implementar un requerimiento, la **IA analizará la arqui
 - 🔹 **Explicación detallada** del plan de implementación antes de ejecutarlo.  
 - 🔹 Creación de **mockups o diagramas de diseño** en caso de involucrar interfaces de usuario.  
 - 🔹 Definición del **contrato de servicio** si el requerimiento implica una nueva API o microservicio.  
-- 🔹 Presentación de estos artefactos para **aprobación previa** antes de proceder con la implementación.  
+- 🔹 Presentación de estos artefactos para **aprobación previa** solo si la implementación no está definida en el estándar de arquitectura.  
+
+📌 **Si una modificación es aprobada por el Comité de Arquitectura, la documentación de Arquitectura será actualizada para que futuras implementaciones la consideren sin necesidad de una nueva validación.**  
 
 ---
 
 ### ✅ **Beneficios de la Gobernanza por IA**  
 
+✔ **Garantiza que todas las implementaciones sigan el estándar definido sin excepciones.**  
 ✔ **Reducción de errores** en la implementación al seguir lineamientos claros.  
 ✔ **Mayor eficiencia** en el desarrollo y mantenimiento del sistema.  
 ✔ **Automatización del análisis y validación**, asegurando calidad y coherencia en las soluciones.  
 ✔ **Control de cambios y mejoras** basados en decisiones informadas y alineadas con la arquitectura.  
-✔ **Mayor transparencia en el desarrollo**, permitiendo revisiones y aprobaciones antes de cada implementación.  
+✔ **Mayor transparencia en el desarrollo**, permitiendo revisiones y aprobaciones solo cuando sea necesario.  
 
-🚀 **📌 La IA no procederá con ninguna implementación sin antes proporcionar un análisis detallado y obtener la aprobación correspondiente.**
+🚀 **📌 La IA procederá con la implementación únicamente si se encuentra dentro del estándar de arquitectura definido. Cualquier modificación fuera del estándar requerirá aprobación formal del Comité de Arquitectura y, si es aprobada, la documentación será actualizada para futuras implementaciones.**
+
 
 ---
 
