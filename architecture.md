@@ -285,7 +285,6 @@ Se usará **PostgreSQL** como motor de base de datos, asegurando un almacenamien
 ✅ **Todos los scripts** deben estar **bien documentados**, siguiendo estándares de nomenclatura y mejores prácticas.  
 
 ### 📌 **4.3 Estructura del Proyecto**  
-```tree
  📂 ZEUS_BD_<NOMBRE_PRODUCTO>/        # Directorio raíz del proyecto de base de datos
 │── 📂 primaria/                     # Configuración y scripts para la BD primaria
 │   ├── 📄 pg_hba.conf               # Configuración de autenticación
