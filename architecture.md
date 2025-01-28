@@ -285,6 +285,7 @@ Se usará **PostgreSQL** como motor de base de datos, asegurando un almacenamien
 ✅ **Todos los scripts** deben estar **bien documentados**, siguiendo estándares de nomenclatura y mejores prácticas.  
 
 ### 📌 **4.3 Estructura del Proyecto**  
+```tree
  📂 ZEUS_BD_<NOMBRE_PRODUCTO>/        # Directorio raíz del proyecto de base de datos
 │── 📂 primaria/                     # Configuración y scripts para la BD primaria
 │   ├── 📄 pg_hba.conf               # Configuración de autenticación
@@ -321,7 +322,7 @@ Se usará **PostgreSQL** como motor de base de datos, asegurando un almacenamien
 │── 📄 README.md                        # Documentación de instalación y uso
 │── 📄 script_bd.md                     # Código de ejemplo de los scripts
 │── 📄 lineamientos_desarrollo_bd.md    # Lineamientos de desarrollo en BD
-
+```
 
 ## 🏗️ **5. Capa de Back-End**
 
@@ -447,7 +448,7 @@ Cada **microservicio** está diseñado para representar una **entidad de negocio
 │── 📂 scripts/                 # Scripts de despliegue y mantenimiento
 │── docker-compose.yml          # Configuración Docker para todos los microservicios
 │── .gitignore
-
+```
 ## 🏗️ **6. Capa de Front-End**
 
 ### 📌 **6.1 Descripción**  
@@ -550,6 +551,7 @@ Esto garantiza **independencia** entre los módulos y facilita su **mantenimient
 │── docker-compose.yml            # Orquestación de los microfronts con Docker
 │── .gitignore
 │── README.md                     # Documentación del proyecto
+```
 
 ## 🏗️ **7. Capa de Integración**
 
@@ -632,6 +634,7 @@ Además, cuenta con una **API de Integración** encargada de la **autenticación
 │── docker-compose.yml               # Orquestación de la capa de integración con Docker
 │── .gitignore
 │── README.md                        # Documentación del proyecto
+```
 
 ## 🏗️ **8. Seguridad y Gobernanza**
 
@@ -717,6 +720,7 @@ Se establecen políticas de **seguridad, autenticación, autorización y monitor
 │── docker-compose.yml            # Orquestación de seguridad con Docker
 │── .gitignore
 │── README.md                     # Documentación del sistema de seguridad y gobernanza
+```
 
 ## 🏗️ **9. Monitoreo y Observabilidad**
 
@@ -789,6 +793,7 @@ Se implementan herramientas para la **recopilación de métricas, logs y trazas*
 │── docker-compose.yml             # Orquestación de monitoreo con Docker
 │── .gitignore
 │── README.md                      # Documentación del sistema de monitoreo y observabilidad
+```
 
 ## 🏗️ **10. Despliegue y Entorno de Ejecución**
 
@@ -859,6 +864,7 @@ El sistema está diseñado para ejecutarse en **entornos contenedorizados**, uti
 │── 📂 scripts/                    # Scripts de despliegue y rollback
 │── docker-compose.yml             # Orquestación de entornos con Docker
 │── README.md                      # Documentación del entorno de despliegue
+```
 
 ## 🏗️ **11. Mantenimiento y Mejora Continua**
 
@@ -928,3 +934,4 @@ Este proceso incluye la **gestión de incidencias, optimización del rendimiento
 │
 │── 📂 scripts/                    # Scripts de mantenimiento automatizado
 │── README.md                      # Documentación del proceso de mantenimiento
+```
