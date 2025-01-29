@@ -423,5 +423,667 @@ Cada contrato de servicio debe documentarse en Swagger y exponerse en `/api-docs
 ✅ Los DTOs deben tener nombres descriptivos según la acción.
 
 ---
+# ➜ **5 Tipos de Respuestas y Manejo de Errores**
 
+## ⭐ **5.1 Formato Estándar de Respuestas**
+
+Todas las respuestas de los microservicios deben seguir una estructura estandarizada con los siguientes elementos:
+
+```json
+{
+  "estado": {
+    "exito": true,
+    "codigoHttp": 200,
+    "mensaje": "Exito",
+    "idTransaction": 12322321321784821
+  },
+  "dato": {
+    "resultado": {
+      "id": 123,
+      "nombre": "Juan Pérez",
+      "edad": 30
+    }
+  },
+  "error": []
+}
+```
+
+### **Estructura de la Respuesta:**
+- **estado:** Contiene la información sobre el resultado de la operación.
+- **dato:** Contiene el objeto resultado cuando la operación es exitosa.
+- **error:** Lista de errores cuando la operación falla.
+
+---
+
+## ⭐ **5.2 Codificación de Errores y Mensajes**
+
+Cada error debe incluir un **código estandarizado** y un mensaje descriptivo. Ejemplo:
+
+```json
+"error": [
+  {
+    "codigo": "campoRequerido",
+    "mensaje": "El campo 'correoElectronico' es obligatorio."
+  }
+]
+```
+
+Los **códigos de error** deben seguir el formato `camelCase` y describir la causa del error de manera clara.
+
+---
+
+## ⭐ **5.3 Tipos de Errores y Estructura de Respuesta**
+
+### **5.3.1 Errores de Validación (`400 BAD REQUEST`)**
+```json
+{
+  "status": {
+    "exito": false,
+    "codigoHttp": 400,
+    "mensaje": "Error en validaciones",
+    "idTransaction": 12322321321784821
+  },
+  "dato": {
+    "resultado": null
+  },
+  "error": [
+    {
+      "codigo": "campoRequerido",
+      "mensaje": "El campo 'email' es obligatorio."
+    }
+  ]
+}
+```
+
+### **5.3.2 Errores de Autenticación (`401 UNAUTHORIZED`)**
+```json
+{
+  "status": {
+    "exito": false,
+    "codigoHttp": 401,
+    "mensaje": "Error de autenticación",
+    "idTransaction": 12322321321784821
+  },
+  "dato": {
+    "resultado": null
+  },
+  "error": [
+    {
+      "codigo": "credencialesInvalidas",
+      "mensaje": "El usuario o contraseña son incorrectos."
+    }
+  ]
+}
+```
+
+### **5.3.3 Errores de Autorización (`403 FORBIDDEN`)**
+```json
+{
+  "status": {
+    "exito": false,
+    "codigoHttp": 403,
+    "mensaje": "Error de autorización",
+    "idTransaction": 12322321321784821
+  },
+  "dato": {
+    "resultado": null
+  },
+  "error": [
+    {
+      "codigo": "accesoDenegado",
+      "mensaje": "No tienes permisos para acceder a este recurso."
+    }
+  ]
+}
+```
+
+### **5.3.4 Recurso No Encontrado (`404 NOT FOUND`)**
+```json
+{
+  "status": {
+    "exito": false,
+    "codigoHttp": 404,
+    "mensaje": "Recurso no encontrado",
+    "idTransaction": 12322321321784821
+  },
+  "dato": {
+    "resultado": null
+  },
+  "error": [
+    {
+      "codigo": "recursoNoEncontrado",
+      "mensaje": "El recurso solicitado no existe."
+    }
+  ]
+}
+```
+
+### **5.3.5 Errores del Servidor (`500 INTERNAL SERVER ERROR`)**
+```json
+{
+  "status": {
+    "codigoHttp": 500,
+    "mensaje": "Ocurrió un error inesperado. Por favor, inténtalo de nuevo más tarde.",
+    "idTransaction": 12322321321784821
+  },
+  "dato": {
+    "resultado": null
+  },
+  "error": [
+    {
+      "codigo": "errorTecnico",
+      "mensaje": "Por favor, contacta con el soporte e indica el ID de la transacción."
+    }
+  ]
+}
+```
+
+---
+
+## ⭐ **5.4 Implementación de Middleware Global para Manejo de Errores**
+Todos los microservicios deben contar con un middleware que capture y maneje los errores de manera uniforme.
+
+```typescript
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, Logger } from '@nestjs/common';
+import { Response } from 'express';
+
+@Catch(HttpException)
+export class FiltroErroresGlobal implements ExceptionFilter {
+  private readonly logger = new Logger(FiltroErroresGlobal.name);
+
+  catch(exception: HttpException, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const status = exception.getStatus();
+    const exceptionResponse: any = exception.getResponse();
+
+    const respuesta = {
+      status: {
+        exito: false,
+        codigoHttp: status,
+        mensaje: exceptionResponse?.message || 'Error inesperado',
+        idTransaction: Math.floor(Math.random() * 1000000000).toString()
+      },
+      dato: { resultado: null },
+      error: exceptionResponse?.details || []
+    };
+
+    this.logger.error(`Error ${status}: ${JSON.stringify(respuesta)}`);
+    response.status(status).json(respuesta);
+  }
+}
+```
+
+---
+
+## ⭐ **5.5 Registro de Errores en Logs y Monitoreo**
+- Todos los errores deben ser registrados en un sistema de logs centralizado como **Elastic Stack, Grafana Loki o Datadog**.
+- Se recomienda incluir trazabilidad de `idTransaction` para seguimiento de errores en producción.
+
+---
+
+## ⭐ **5.6 Envío Asíncrono de Logs de Auditoría**
+Los errores críticos deben enviarse a **Kafka** para su monitoreo en tiempo real.
+
+```json
+{
+  "evento": "errorDetectado",
+  "origen": "coreAutenticacionSigesZeus",
+  "detalle": {
+    "codigo": "autenticacionFallida",
+    "mensaje": "Token JWT inválido"
+  },
+  "fecha": "2025-01-28T14:50:00Z"
+}
+```
+
+---
+
+📌 **Este es el formato estandarizado para respuestas y manejo de errores en todos los microservicios.** 🚀
+
+
+# ➜ **6 Contratos de Servicios y API Design**
+
+## ⭐ **6.1 Definición de Contratos Antes de la Implementación**
+
+Antes de desarrollar cualquier microservicio, es obligatorio definir un **contrato de servicio** que especifique los siguientes aspectos:
+- Endpoints y rutas.
+- Tipos de peticiones (GET, POST, PUT, DELETE).
+- Cuerpo de las solicitudes y respuestas.
+- Códigos de estado HTTP esperados.
+- Errores posibles y estructura de respuestas de error.
+- Dependencias con otros servicios.
+
+Esto permite garantizar la interoperabilidad entre los diferentes microservicios y facilita la documentación previa a la implementación.
+
+---
+
+## ⭐ **6.2 Uso Obligatorio de Swagger/OpenAPI para Documentar Servicios**
+
+Cada microservicio debe exponer su documentación mediante **Swagger (OpenAPI 3.0)**. Esto permite:
+- Generar documentación automatizada y siempre actualizada.
+- Facilitar la integración con otros equipos y sistemas.
+- Probar los endpoints desde una interfaz web.
+
+Ejemplo de configuración en **NestJS**:
+
+```typescript
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+const config = new DocumentBuilder()
+  .setTitle('Usuarios API')
+  .setDescription('API para la gestión de usuarios')
+  .setVersion('1.0')
+  .addBearerAuth()
+  .build();
+
+const document = SwaggerModule.createDocument(app, config);
+SwaggerModule.setup('api-docs', app, document);
+```
+
+---
+
+## ⭐ **6.3 Proceso de Aprobación del Contrato Antes del Desarrollo**
+
+Para garantizar calidad y alineación con la arquitectura establecida, el contrato de cada microservicio debe pasar por un proceso de aprobación antes de su desarrollo. Este proceso consta de las siguientes etapas:
+
+1. **Definición del Contrato:**
+   - El desarrollador o equipo encargado redacta el contrato de servicio basado en las necesidades del negocio.
+   - Se deben incluir endpoints, tipos de datos, validaciones y estructura de respuestas.
+
+2. **Revisión Técnica:**
+   - El equipo de arquitectura revisa el contrato para garantizar que cumple con los estándares establecidos en este documento.
+   - Se verifican aspectos como seguridad, consistencia con otras APIs y cumplimiento de nomenclatura.
+
+3. **Pruebas de Compatibilidad:**
+   - Se valida la interoperabilidad con otros microservicios.
+   - Se realizan pruebas con herramientas como Postman o Mock Servers.
+
+4. **Aprobación Formal:**
+   - Una vez revisado y validado, el contrato debe ser aprobado formalmente por el equipo de arquitectura.
+   - Se registra la versión inicial del contrato en el repositorio correspondiente.
+
+5. **Publicación del Contrato:**
+   - El contrato aprobado se publica en la documentación del microservicio (Swagger, OpenAPI o repositorio de documentación).
+   - Se notifica a los equipos interesados sobre su disponibilidad y uso.
+
+📌 **Este proceso asegura que todos los contratos sean diseñados de manera consistente, segura y compatible con la arquitectura del sistema.** 🚀
+
+---
+
+## ⭐ **6.4 Contratos de Servicios por Tipo de Microservicio**
+
+Los contratos de servicios deben definirse según el tipo de microservicio, estableciendo reglas específicas para cada categoría.
+
+### **6.4.1 Contrato para Microservicios Core**
+
+Los microservicios core se encargan de la gestión de entidades principales dentro del sistema. Su contrato debe definir:
+- **CRUD** de entidades principales.
+- **Eventos de dominio** emitidos por el microservicio.
+- **Reglas de validación estrictas**.
+
+Ejemplo de contrato de servicio para un microservicio de gestión de usuarios:
+
+```yaml
+openapi: 3.0.0
+info:
+  title: API de Usuarios
+  description: Microservicio para la gestión de usuarios.
+  version: 1.0.0
+paths:
+  /usuarios:
+    get:
+      summary: Obtener la lista de usuarios
+      responses:
+        '200':
+          description: Lista de usuarios obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Usuario'
+    post:
+      summary: Crear un nuevo usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Usuario'
+      responses:
+        '201':
+          description: Usuario creado exitosamente
+        '400':
+          description: Error de validación en los datos ingresados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: El usuario ya existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Usuario:
+      type: object
+      required:
+        - nombre
+        - email
+        - edad
+      properties:
+        id:
+          type: integer
+          example: 123
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "Juan Pérez"
+        email:
+          type: string
+          format: email
+          example: "juan.perez@example.com"
+        edad:
+          type: integer
+          minimum: 18
+          maximum: 99
+          example: 30
+    Error:
+      type: object
+      properties:
+        codigo:
+          type: string
+          example: "campoRequerido"
+        mensaje:
+          type: string
+          example: "El campo 'email' es obligatorio."
+```
+ 
+### **6.4.2 Contrato para Microservicios de Orquestación**
+
+Los microservicios de orquestación son responsables de coordinar el flujo de trabajo entre varios microservicios. Se encargan de manejar transacciones distribuidas y procesos complejos que requieren la interacción de múltiples servicios.
+
+Ejemplo de contrato para un microservicio de orquestación de pedidos:
+
+```yaml
+openapi: 3.0.0
+info:
+  title: API de Orquestación de Pedidos
+  description: Microservicio que coordina la creación y procesamiento de pedidos.
+  version: 1.0.0
+paths:
+  /procesar-pedido:
+    post:
+      summary: Orquestar el procesamiento de un pedido
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pedido'
+      responses:
+        '202':
+          description: Pedido en proceso
+        '422':
+          description: Error de negocio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Pedido:
+      type: object
+      required:
+        - idPedido
+        - clienteId
+      properties:
+        idPedido:
+          type: string
+          format: ulid
+          example: "01AN4Z07BY79KA1307SR9X4MV3"
+        clienteId:
+          type: integer
+          example: 101
+        estado:
+          type: string
+          enum: ["pendiente", "procesado", "enviado"]
+          example: "pendiente"
+    Error:
+      type: object
+      properties:
+        codigo:
+          type: string
+          example: "pedidoInvalido"
+        mensaje:
+          type: string
+          example: "El pedido no puede procesarse debido a datos incorrectos."
+```
+
+---
+
+### **6.4.3 Contrato para Microservicios de Integración**
+
+Los microservicios de integración permiten la comunicación con sistemas externos, adaptando datos y manejando autenticación con terceros.
+
+Ejemplo de contrato para la integración con una pasarela de pagos:
+
+```yaml
+openapi: 3.0.0
+info:
+  title: API de Integración con Pasarela de Pagos
+  description: Microservicio que se conecta con una pasarela de pagos externa.
+  version: 1.0.0
+paths:
+  /realizar-pago:
+    post:
+      summary: Realizar un pago a través de la pasarela
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pago'
+      responses:
+        '200':
+          description: Pago realizado exitosamente
+        '400':
+          description: Error en la validación del pago
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Servicio externo no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Pago:
+      type: object
+      required:
+        - monto
+        - moneda
+        - metodoPago
+      properties:
+        monto:
+          type: number
+          minimum: 1.0
+          example: 100.50
+        moneda:
+          type: string
+          example: "USD"
+        metodoPago:
+          type: string
+          enum: ["tarjeta", "transferencia", "paypal"]
+          example: "tarjeta"
+    Error:
+      type: object
+      properties:
+        codigo:
+          type: string
+          example: "pagoFallido"
+        mensaje:
+          type: string
+          example: "El pago no pudo ser procesado. Intente nuevamente."
+```
+
+---
+
+### **6.4.4 Contrato para Microservicios de Soporte**
+
+Los microservicios de soporte brindan funcionalidades auxiliares como autenticación, envío de notificaciones y monitoreo del sistema.
+
+Ejemplo de contrato para un servicio de notificaciones:
+
+```yaml
+openapi: 3.0.0
+info:
+  title: API de Notificaciones
+  description: Microservicio encargado de enviar notificaciones a los usuarios.
+  version: 1.0.0
+paths:
+  /enviar-correo:
+    post:
+      summary: Enviar un correo electrónico
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Correo'
+      responses:
+        '200':
+          description: Correo enviado exitosamente
+        '400':
+          description: Error en la validación del correo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Correo:
+      type: object
+      required:
+        - destinatario
+        - asunto
+        - mensaje
+      properties:
+        destinatario:
+          type: string
+          format: email
+          example: "usuario@example.com"
+        asunto:
+          type: string
+          maxLength: 100
+          example: "Bienvenido a nuestra plataforma"
+        mensaje:
+          type: string
+          maxLength: 500
+          example: "Gracias por registrarte en nuestro servicio."
+    Error:
+      type: object
+      properties:
+        codigo:
+          type: string
+          example: "errorEnvio"
+        mensaje:
+          type: string
+          example: "No se pudo enviar el correo. Verifique los datos ingresados."
+```
+
+## ⭐ **6.5 Exposición de la Documentación Mediante una URL Pública**
+
+### **6.5.1 Cada Servicio Debe Exponer su Contrato en `/api-docs` con Swagger**
+Cada microservicio debe proveer su documentación accesible en la ruta `/api-docs`.
+Ejemplo:
+```
+https://mi-microservicio.dominio.com/api-docs
+```
+
+- La documentación debe generarse automáticamente con **Swagger/OpenAPI** y reflejar la versión actual del servicio.
+- Se recomienda proteger el acceso con autenticación cuando sea necesario.
+
+### **6.5.2 La URL Debe Ser Accesible Dentro del Ecosistema de Microservicios**
+
+- Los contratos de servicio deben ser accesibles para todos los equipos de desarrollo y consumo dentro de la infraestructura de microservicios.
+- Se puede exponer la documentación a nivel interno a través de una **API Gateway** o una plataforma de descubrimiento de servicios.
+- Si el servicio es público, la documentación debe estar accesible sin autenticación, con una política clara de consumo.
+
+### **6.5.3 Todos los Contratos Deben Versionarse y Mantenerse Actualizados**
+
+- Las versiones de las APIs deben seguir **SemVer (Semantic Versioning)**.
+- Se recomienda mantener **al menos 2 versiones activas** antes de descontinuar una API.
+- Cualquier cambio en la API debe reflejarse en la documentación antes de la implementación.
+
+---
+
+## ⭐ **6.6 Estandarización de Endpoints y Rutas**
+
+Para garantizar consistencia, los endpoints deben cumplir con las siguientes reglas:
+
+- **Uso de nombres en plural** para representar colecciones.
+  - ✅ `/usuarios`, `/pedidos`
+  - ❌ `/usuario`, `/pedido`
+- **Uso de verbos HTTP adecuados:**
+  - `GET /usuarios` → Obtener lista de usuarios.
+  - `POST /usuarios` → Crear un nuevo usuario.
+  - `PUT /usuarios/{id}` → Actualizar un usuario existente.
+  - `DELETE /usuarios/{id}` → Eliminación lógica de un usuario.
+- **Incluir versión en la ruta** (`/api/v1/recurso`).
+- **Evitar incluir verbos en la URL:**
+  - ✅ `/usuarios`
+  - ❌ `/obtenerUsuarios`
+- **Utilizar `camelCase` en los parámetros de la URL:**
+  - ✅ `/usuarios/{usuarioId}`
+  - ❌ `/usuarios/{usuario_id}`
+
+📌 **Estas reglas garantizan que los endpoints sean predecibles y fáciles de consumir.**
+
+---
+
+## ⭐ **6.7 Políticas de Autenticación y Autorización en APIs**
+
+### **6.7.1 Autenticación**
+- **Uso obligatorio de JWT (JSON Web Tokens)** para autenticar solicitudes.
+- Todas las APIs privadas deben requerir un token válido en el encabezado `Authorization`.
+- Implementación de autenticación con **OAuth 2.0** si se necesita interoperabilidad con terceros.
+
+Ejemplo de autenticación en Swagger:
+```yaml
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - BearerAuth: []
+```
+
+### **6.7.2 Autorización**
+- **Control de acceso basado en roles (RBAC)** para definir permisos en cada endpoint.
+- **Reglas de autorización** aplicadas en los controladores de cada servicio.
+
+Ejemplo de validación de permisos en **NestJS**:
+```typescript
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+
+@Injectable()
+export class RolGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    return request.user?.rol === 'admin';
+  }
+}
+```
+
+📌 **Estas políticas aseguran que el acceso a las APIs esté correctamente controlado y protegido.** 🚀
 
