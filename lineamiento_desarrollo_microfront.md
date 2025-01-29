@@ -478,7 +478,868 @@ const store = configureStore({ reducer: { usuario: usuarioSlice.reducer } });
 export default store;
 ```
 
-📌 **Estas tecnologías permiten construir microfrontends robustos, flexibles y escalables, alineados con las mejores prácticas y estándares modernos.** 🚀
+## **5. Desarrollo de Microfrontends**
+
+### **5.1 Separación de Responsabilidades en el Código**
+
+Para garantizar mantenibilidad y escalabilidad, cada microfrontend debe seguir una estructura modular:
+
+📂 **microfrontends/**
+│── 📂 **contenedor/** _(Orquestador de Microfrontends)_
+│── 📂 **aplicacion/** _(Microfrontends de Aplicación)_
+│── 📂 **librerias-compartidas/** _(Utilidades comunes)_
+│── 📂 **infraestructura/** _(Configuraciones globales)_
+
+Cada microfrontend debe contener:
+- **Componentes** reutilizables.
+- **Páginas** independientes con lógica específica.
+- **Adaptadores** para la integración con el backend.
+- **Manejo de eventos** para la comunicación entre módulos.
+- **Estilos** separados para cada microfrontend.
+
+Ejemplo de estructura de un microfrontend:
+```plaintext
+📂 ventas/
+│── 📂 src/
+│   ├── 📂 componentes/      # Componentes reutilizables
+│   ├── 📂 paginas/          # Páginas completas
+│   ├── 📂 adaptadores/      # Conexión con backend
+│   ├── 📂 hooks/            # Custom Hooks
+│   ├── 📂 eventos/          # Comunicación con otros microfronts
+│   ├── 📂 configuracion/    # Configuración de rutas y Module Federation
+│   ├── 📂 estilos/          # Archivos de estilos específicos
+│   ├── main.tsx            # Punto de entrada
+│   ├── app.tsx             # Componente principal
+│   ├── bootstrap.tsx       # Configuración inicial
+│── package.json
+│── tsconfig.json
+│── webpack.config.js
+│── Dockerfile
+│── .env
+```
+
+---
+
+### **5.2 Creación y Registro de Microfrontends en el Contenedor**
+
+Cada microfrontend debe registrarse en el contenedor principal utilizando **Module Federation**. Esto permite su carga dinámica sin necesidad de recompilar todo el sistema.
+
+Ejemplo de configuración en `webpack.config.js` del contenedor:
+```javascript
+const { ModuleFederationPlugin } = require('webpack').container;
+
+module.exports = {
+  plugins: [
+    new ModuleFederationPlugin({
+      name: 'contenedor',
+      remotes: {
+        ventas: 'ventas@http://localhost:3001/remoteEntry.js',
+        pedidos: 'pedidos@http://localhost:3002/remoteEntry.js',
+      },
+      shared: ['react', 'react-dom', 'antd']
+    })
+  ]
+};
+```
+
+Cada microfrontend debe exponer sus componentes en `webpack.config.js`:
+```javascript
+const { ModuleFederationPlugin } = require('webpack').container;
+
+module.exports = {
+  plugins: [
+    new ModuleFederationPlugin({
+      name: 'ventas',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './VentasApp': './src/app.tsx',
+      },
+      shared: ['react', 'react-dom', 'antd']
+    })
+  ]
+};
+```
+
+---
+
+### **5.3 Integración con APIs del Backend**
+
+Los microfrontends deben consumir APIs mediante adaptadores centralizados para desacoplar la lógica de negocio del acceso a datos.
+
+Ejemplo de un **adaptador de API**:
+```typescript
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:4000/api/v1',
+  headers: { 'Content-Type': 'application/json' },
+});
+
+export const obtenerPedidos = async () => {
+  try {
+    const response = await api.get('/pedidos');
+    return response.data;
+  } catch (error) {
+    console.error('Error obteniendo pedidos', error);
+    throw error;
+  }
+};
+```
+
+Uso en un componente React:
+```tsx
+import { useEffect, useState } from 'react';
+import { obtenerPedidos } from '../adaptadores/apiPedidos';
+
+const Pedidos = () => {
+  const [pedidos, setPedidos] = useState([]);
+
+  useEffect(() => {
+    obtenerPedidos().then(setPedidos).catch(console.error);
+  }, []);
+
+  return (
+    <div>
+      <h2>Lista de Pedidos</h2>
+      <ul>
+        {pedidos.map((pedido) => (
+          <li key={pedido.id}>{pedido.nombre}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+export default Pedidos;
+```
+
+---
+
+### **5.4 Manejo de Eventos y Comunicación entre Microfrontends**
+
+Para garantizar un sistema desacoplado, los microfrontends se comunican a través de eventos en un **Event Bus**.
+
+Ejemplo de implementación de **Event Bus**:
+```typescript
+class EventBus {
+  private listeners: Record<string, Function[]> = {};
+
+  on(event: string, callback: Function) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+  }
+
+  emit(event: string, data?: any) {
+    if (this.listeners[event]) {
+      this.listeners[event].forEach((callback) => callback(data));
+    }
+  }
+}
+export const eventBus = new EventBus();
+```
+
+Uso en un Microfrontend:
+```tsx
+import { eventBus } from '../eventos/eventBus';
+
+const Notificaciones = () => {
+  useEffect(() => {
+    eventBus.on('nuevoPedido', (pedido) => {
+      alert(`Nuevo pedido recibido: ${pedido.nombre}`);
+    });
+  }, []);
+
+  return <div>Escuchando eventos...</div>;
+};
+export default Notificaciones;
+```
+
+---
+
+### **5.5 Pruebas Unitarias e Integración Continua (CI/CD)**
+
+Se deben realizar pruebas unitarias con **Jest** y **React Testing Library**.
+
+Ejemplo de prueba unitaria:
+```tsx
+import { render, screen } from '@testing-library/react';
+import Pedidos from '../componentes/Pedidos';
+
+test('Renderiza la lista de pedidos', async () => {
+  render(<Pedidos />);
+  const title = screen.getByText(/Lista de Pedidos/i);
+  expect(title).toBeInTheDocument();
+});
+```
+
+En CI/CD, se recomienda ejecutar pruebas antes de desplegar el código. Ejemplo de **GitHub Actions**:
+```yaml
+name: CI/CD Microfrontends
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Instalar dependencias
+        run: npm install
+      - name: Ejecutar pruebas
+        run: npm test
+```
+
+---
+
+### **5.6 Patrones y Buenas Prácticas en React + TypeScript**
+
+- **Usar componentes reutilizables** para evitar duplicación de código.
+- **Implementar hooks personalizados** para lógica compartida.
+- **Gestionar estado con Context API o Zustand** en lugar de usar `useState` globalmente.
+- **Definir interfaces en TypeScript** para garantizar seguridad en los datos.
+
+Ejemplo de un **Hook personalizado**:
+```tsx
+import { useState, useEffect } from 'react';
+
+export const usePedidos = () => {
+  const [pedidos, setPedidos] = useState([]);
+
+  useEffect(() => {
+    obtenerPedidos().then(setPedidos).catch(console.error);
+  }, []);
+
+  return pedidos;
+};
+```
+## **6. Estándares de Desarrollo**
+
+### **6.1 Convenciones de nombres en archivos y componentes**
+Para garantizar la coherencia y legibilidad del código, se deben seguir las siguientes convenciones de nomenclatura:
+
+- **Componentes React:** `PascalCase` (Ejemplo: `LoginForm.tsx`)
+- **Hooks personalizados:** `camelCase` con prefijo `use` (Ejemplo: `useAuth.ts`)
+- **Archivos de estilos:** `kebab-case` con extensión `.less` o `.css` (Ejemplo: `login-form.less`)
+- **Archivos de configuración:** `kebab-case` (Ejemplo: `webpack-config.ts`)
+- **Contextos globales:** `PascalCase` (Ejemplo: `AuthContext.tsx`)
+- **Rutas de API y configuraciones:** `SCREAMING_SNAKE_CASE` en variables de entorno (Ejemplo: `REACT_APP_API_URL`)
+
+---
+
+### **6.2 Organización de carpetas y estructura del proyecto**
+El código debe seguir una estructura modular y escalable:
+
+```plaintext
+📂 microfrontends/
+│── 📂 contenedor/              # Microfrontend Contenedor (Orquesta los microfronts)
+│   ├── 📂 src/
+│   │   ├── 📂 componentes/      # Componentes compartidos (Header, Sidebar, Footer, etc.)
+│   │   ├── 📂 modulos/          # Módulos principales de integración
+│   │   ├── 📂 adaptadores/      # Conexión con microfrontends remotos
+│   │   ├── 📂 configuracion/    # Configuración de Module Federation y rutas
+│   │   ├── 📂 eventos/          # Manejo de eventos globales
+│   │   ├── 📂 estilos/          # Estilos globales (Ant Design, Tailwind)
+│   │   ├── main.tsx             # Punto de entrada del contenedor
+│   │   ├── app.tsx              # Enrutador principal
+│   ├── 📂 public/               # Archivos estáticos
+│   ├── 📂 tests/                # Pruebas unitarias e integración
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── webpack.config.js
+│   ├── Dockerfile
+│   ├── .env
+│
+│── 📂 aplicacion/               # Microfrontends de Aplicación (Ejemplo: Ventas, Pedidos)
+│   ├── 📂 ventas/
+│   │   ├── 📂 src/
+│   │   │   ├── 📂 componentes/    # Componentes específicos
+│   │   │   ├── 📂 paginas/        # Vistas o pantallas
+│   │   │   ├── 📂 hooks/          # Hooks personalizados
+│   │   │   ├── 📂 contextos/      # Manejo de estados
+│   │   │   ├── 📂 eventos/        # Eventos específicos del microfrontend
+│   │   │   ├── 📂 configuracion/  # Configuraciones de rutas y federation
+│   │   │   ├── main.tsx           # Punto de entrada del microfrontend
+│   │   │   ├── app.tsx            # Componente principal
+│   │   ├── 📂 public/
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   ├── webpack.config.js
+│   │   ├── Dockerfile
+│   │   ├── .env
+│
+│── 📂 librerias-compartidas/     # Librerías comunes entre microfronts
+│   ├── 📂 ui/                    # Componentes reutilizables
+│   ├── 📂 utils/                 # Funciones auxiliares
+│   ├── 📂 hooks/                 # Hooks compartidos
+│   ├── 📂 eventos/               # Definición de eventos globales
+│
+│── 📂 infraestructura/           # Configuración general y despliegue
+│   ├── 📂 docker/
+│   ├── 📂 ci-cd/
+│   ├── 📂 configuracion-global/
+│
+│── docker-compose.yml
+│── .gitignore
+│── README.md
+```
+
+---
+
+### **6.3 Reglas para estilos y diseño con Ant Design y Tailwind**
+
+- **Ant Design** se utilizará para componentes estructurados de UI como botones, modales y formularios.
+- **Tailwind CSS** se utilizará para personalizar estilos y adaptaciones específicas.
+- **Reglas de diseño:**
+  - Seguir la guía de diseño de Ant Design para la coherencia visual.
+  - Usar `tailwind.config.js` para definir variables de colores y espacios.
+  - Evitar estilos en línea; siempre utilizar clases CSS o estilos globales.
+
+Ejemplo de implementación combinada:
+
+```tsx
+import { Button, Card } from 'antd';
+
+export const EjemploComponente = () => {
+  return (
+    <Card className="p-6 shadow-lg bg-white rounded-lg">
+      <h2 className="text-xl font-bold text-gray-800">Título del Componente</h2>
+      <p className="text-gray-600">Este es un componente de ejemplo utilizando Ant Design y Tailwind.</p>
+      <Button type="primary" className="mt-4">Aceptar</Button>
+    </Card>
+  );
+};
+```
+
+---
+
+### **6.4 Uso de variables de entorno y configuración global**
+
+- Todas las variables de entorno deben definirse en un archivo `.env` y cargarse con `dotenv`.
+- La configuración global debe ser accesible desde cualquier parte de la aplicación.
+- Se debe definir un archivo de configuración centralizado.
+
+Ejemplo de configuración global:
+
+```tsx
+export const Configuracion = {
+  API_URL: process.env.REACT_APP_API_URL || 'http://localhost:3000',
+  MODO_DEBUG: process.env.REACT_APP_DEBUG === 'true',
+};
+```
+
+Ejemplo de uso en un microfrontend:
+
+```tsx
+import { Configuracion } from '../configuracion';
+
+fetch(`${Configuracion.API_URL}/usuarios`)
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+---
+## **7. Comunicación entre Microfrontends**
+
+### **7.1 Uso de eventos para desacoplamiento**
+Para garantizar un sistema modular y flexible, la comunicación entre microfrontends debe realizarse mediante eventos en lugar de llamadas directas entre componentes. Esto permite desacoplar los microfrontends y facilita la escalabilidad y mantenibilidad del sistema.
+
+Ejemplo de emisión y recepción de eventos personalizados en JavaScript:
+
+```typescript
+// Emitiendo un evento
+const event = new CustomEvent('usuarioActualizado', { detail: { id: 1, nombre: 'Juan Pérez' } });
+window.dispatchEvent(event);
+
+// Escuchando un evento en otro microfrontend
+window.addEventListener('usuarioActualizado', (event: CustomEvent) => {
+  console.log('Usuario actualizado:', event.detail);
+});
+```
+
+### **7.2 Creación de un Event Bus compartido**
+Dado que los microfrontends operan de manera independiente, es recomendable utilizar un Event Bus centralizado para gestionar la comunicación. Se puede implementar mediante un simple singleton en TypeScript.
+
+Ejemplo de Event Bus:
+
+```typescript
+class EventBus {
+  private static instance: EventBus;
+  private eventTarget = new EventTarget();
+
+  private constructor() {}
+
+  public static getInstance(): EventBus {
+    if (!EventBus.instance) {
+      EventBus.instance = new EventBus();
+    }
+    return EventBus.instance;
+  }
+
+  public on(eventName: string, callback: (event: Event) => void): void {
+    this.eventTarget.addEventListener(eventName, callback);
+  }
+
+  public emit(eventName: string, detail: any): void {
+    this.eventTarget.dispatchEvent(new CustomEvent(eventName, { detail }));
+  }
+}
+
+export default EventBus.getInstance();
+```
+
+Uso en un microfrontend:
+
+```typescript
+import EventBus from './EventBus';
+
+// Suscribirse a un evento
+EventBus.on('usuarioActualizado', (event: Event) => {
+  const customEvent = event as CustomEvent;
+  console.log('Usuario actualizado:', customEvent.detail);
+});
+
+// Emitir un evento
+EventBus.emit('usuarioActualizado', { id: 1, nombre: 'Juan Pérez' });
+```
+
+### **7.3 Sincronización de estado global sin acoplamiento**
+Para evitar dependencias innecesarias entre microfrontends, la sincronización de estado global se debe realizar de forma desacoplada. Algunas estrategias incluyen:
+- **Uso de eventos globales** (como se explicó en el punto anterior).
+- **Almacenamiento compartido con Context API o Zustand**.
+- **Uso de Redux solo si la aplicación requiere una gestión de estado más compleja**.
+
+Ejemplo de Context API para compartir estado global:
+
+```typescript
+import React, { createContext, useContext, useState } from 'react';
+
+interface UsuarioContextProps {
+  usuario: { id: number; nombre: string } | null;
+  setUsuario: (usuario: { id: number; nombre: string }) => void;
+}
+
+const UsuarioContext = createContext<UsuarioContextProps | undefined>(undefined);
+
+export const UsuarioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [usuario, setUsuario] = useState<{ id: number; nombre: string } | null>(null);
+
+  return (
+    <UsuarioContext.Provider value={{ usuario, setUsuario }}>
+      {children}
+    </UsuarioContext.Provider>
+  );
+};
+
+export const useUsuario = (): UsuarioContextProps => {
+  const context = useContext(UsuarioContext);
+  if (!context) {
+    throw new Error('useUsuario debe usarse dentro de un UsuarioProvider');
+  }
+  return context;
+};
+```
+
+Uso en un microfrontend:
+
+```typescript
+import { useUsuario } from './UsuarioContext';
+
+const MiComponente = () => {
+  const { usuario, setUsuario } = useUsuario();
+
+  return (
+    <div>
+      <p>Usuario: {usuario ? usuario.nombre : 'No hay usuario'}</p>
+      <button onClick={() => setUsuario({ id: 2, nombre: 'Ana López' })}>
+        Cambiar usuario
+      </button>
+    </div>
+  );
+};
+```
+
+### **7.4 Persistencia del estado en el almacenamiento local**
+Para mantener el estado entre recargas o cambios de página, se recomienda usar `localStorage` o `sessionStorage` cuando sea apropiado.
+
+Ejemplo de persistencia de datos en `localStorage`:
+
+```typescript
+// Guardar en localStorage
+localStorage.setItem('usuario', JSON.stringify({ id: 1, nombre: 'Juan Pérez' }));
+
+// Recuperar de localStorage
+const usuarioGuardado = localStorage.getItem('usuario');
+if (usuarioGuardado) {
+  const usuario = JSON.parse(usuarioGuardado);
+  console.log('Usuario recuperado:', usuario);
+}
+```
+
+## **8. Seguridad en Microfrontends**
+
+### **8.1 Autenticación y Autorización (OAuth2, JWT)**
+Para garantizar un acceso seguro a los microfrontends, se implementará autenticación basada en **OAuth2 y JWT (JSON Web Token)**.
+
+- **OAuth2** se utilizará para la autenticación con un proveedor externo de identidad.
+- **JWT** permitirá gestionar sesiones de usuario de manera segura y sin necesidad de almacenar estado en el servidor.
+
+Ejemplo de validación de un JWT en el microfrontend:
+```tsx
+import { useEffect, useState } from 'react';
+import { jwtDecode } from 'jwt-decode';
+
+const useAuth = (token: string) => {
+  const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        setUser(decoded);
+      } catch (error) {
+        console.error('Token inválido:', error);
+      }
+    }
+  }, [token]);
+
+  return user;
+};
+```
+
+### **8.2 Manejo de permisos en el Contenedor y Microfronts**
+Cada microfrontend debe validar los permisos del usuario antes de renderizar componentes sensibles.
+
+- El **contenedor principal** obtiene los permisos del usuario al autenticarse.
+- Cada microfrontend consulta los permisos desde el almacenamiento global o una API.
+- Los permisos se pueden gestionar a través de **roles**, definidos en el token JWT.
+
+Ejemplo de validación de permisos en un componente:
+```tsx
+const PermisoProtegido = ({ permisosRequeridos, children }) => {
+  const usuario = useAuth(localStorage.getItem('token'));
+
+  if (!usuario || !permisosRequeridos.includes(usuario.rol)) {
+    return <p>Acceso denegado</p>;
+  }
+
+  return <>{children}</>;
+};
+```
+
+### **8.3 Restricción de rutas según roles y privilegios**
+La navegación debe estar protegida con **restricciones de acceso** basadas en los roles del usuario.
+
+Ejemplo de protección de rutas con React Router:
+```tsx
+import { Navigate } from 'react-router-dom';
+
+const RutaProtegida = ({ component: Component, permisosRequeridos }) => {
+  const usuario = useAuth(localStorage.getItem('token'));
+
+  return usuario && permisosRequeridos.includes(usuario.rol) ? (
+    <Component />
+  ) : (
+    <Navigate to="/login" />
+  );
+};
+```
+
+### **8.4 Medidas de protección contra ataques XSS y CSRF**
+Para evitar ataques de seguridad en los microfrontends:
+
+- **XSS (Cross-Site Scripting):**
+  - Evitar inyección de código en inputs.
+  - Escapar caracteres peligrosos en la renderización de datos dinámicos.
+  
+  Ejemplo de sanitización de datos:
+  ```tsx
+  import DOMPurify from 'dompurify';
+
+  const ContenidoSeguro = ({ html }) => {
+    return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
+  };
+  ```
+
+- **CSRF (Cross-Site Request Forgery):**
+  - Implementar **tokens CSRF** en las solicitudes a APIs.
+  - Utilizar **SameSite=strict** en las cookies de autenticación.
+  
+  Ejemplo de configuración de cookies seguras:
+  ```ts
+  document.cookie = "sessionToken=abc123; Secure; HttpOnly; SameSite=Strict";
+  ```
+
+Estas medidas garantizarán que los microfrontends sean seguros y protegidos contra amenazas comunes en aplicaciones web.
+## **9. Observabilidad y Monitoreo**
+
+### **9.1 Implementación de logs estructurados**
+La implementación de logs estructurados en los microfrontends permite una mejor trazabilidad y depuración de errores. Para esto, se deben seguir los siguientes lineamientos:
+
+- Cada microfrontend debe registrar eventos importantes como errores, advertencias e interacciones del usuario.
+- Se deben utilizar librerías como `winston` o `loglevel` para generar logs estructurados en formato JSON.
+- Los logs deben incluir información relevante como:
+  - ID de transacción
+  - Usuario autenticado
+  - Fecha y hora del evento
+  - URL del microfrontend
+  - Estado de la solicitud (200, 400, 500, etc.)
+  - Datos de entrada y salida
+
+Ejemplo de implementación en TypeScript con `loglevel`:
+
+```typescript
+import log from 'loglevel';
+
+log.setLevel('info');
+
+export const logger = {
+  info: (message: string, data?: any) => log.info(JSON.stringify({
+    level: 'info',
+    timestamp: new Date().toISOString(),
+    message,
+    data,
+  })),
+  error: (message: string, error?: any) => log.error(JSON.stringify({
+    level: 'error',
+    timestamp: new Date().toISOString(),
+    message,
+    error,
+  })),
+};
+```
+
+### **9.2 Integración con herramientas de monitoreo como Prometheus y Grafana**
+Para monitorear el rendimiento de los microfrontends, se pueden usar herramientas como **Prometheus** y **Grafana**, permitiendo visualizar métricas clave:
+
+- **Tiempo de carga de los microfrontends**
+- **Errores HTTP capturados**
+- **Uso de memoria y CPU**
+- **Métricas de eventos personalizados (clics, interacciones)**
+
+#### **Pasos para integrar Prometheus con los microfrontends:**
+1. Implementar un endpoint de métricas en cada microfrontend.
+2. Configurar un servicio intermediario para recolectar y enviar las métricas a Prometheus.
+3. Configurar **Grafana** para visualizar las métricas en tableros personalizados.
+
+Ejemplo de integración de métricas con Prometheus:
+
+```typescript
+import express from 'express';
+import client from 'prom-client';
+
+const app = express();
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics({ timeout: 5000 });
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
+});
+
+app.listen(3000, () => console.log('Servidor de métricas corriendo en puerto 3000'));
+```
+
+### **9.3 Uso de tracing distribuido para detectar errores en Microfrontends**
+El tracing distribuido permite identificar cuellos de botella y diagnosticar errores en los microfrontends. Herramientas como **Jaeger** y **OpenTelemetry** ayudan a capturar trazas de peticiones HTTP y eventos en la UI.
+
+#### **Pasos para implementar tracing distribuido en React con OpenTelemetry:**
+1. Instalar OpenTelemetry:
+   ```bash
+   npm install @opentelemetry/api @opentelemetry/web
+   ```
+2. Configurar un tracer global:
+   ```typescript
+   import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+   import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
+
+   const provider = new WebTracerProvider();
+   provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
+   provider.register();
+   ```
+3. Usar el tracer en eventos de la UI:
+   ```typescript
+   import { trace } from '@opentelemetry/api';
+
+   const tracer = trace.getTracer('mi-microfrontend');
+
+   function handleClick() {
+     const span = tracer.startSpan('usuario_hizo_clic');
+     console.log('Evento de usuario registrado en OpenTelemetry');
+     span.end();
+   }
+   ```
+
+Esto permite registrar cada acción del usuario y detectar problemas en la navegación o integraciones con otros microfrontends.
+
+---
+## **10. Despliegue y CI/CD**
+
+### **10.1 Contenerización de Microfrontends con Docker**
+Para garantizar la portabilidad y facilidad de despliegue, cada microfrontend debe ejecutarse dentro de un contenedor Docker. La contenerización permite aislar cada microfrontend y facilitar su administración en distintos entornos.
+
+#### **Ejemplo de Dockerfile para un Microfrontend**
+```dockerfile
+# Usar la imagen base de Node.js para la construcción
+FROM node:18-alpine AS build
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Copiar archivos de configuración
+COPY package.json package-lock.json ./
+
+# Instalar dependencias
+RUN npm install --frozen-lockfile
+
+# Copiar el resto del código fuente
+COPY . .
+
+# Construir la aplicación
+RUN npm run build
+
+# Segunda etapa: Servir la aplicación con un servidor web ligero
+FROM nginx:alpine
+
+# Copiar los archivos de la compilación
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Exponer el puerto por defecto de Nginx
+EXPOSE 80
+
+# Ejecutar Nginx
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### **10.2 Orquestación con Docker-Compose**
+Para gestionar múltiples microfrontends y el contenedor principal, se utiliza Docker-Compose. Esto permite definir los servicios y sus configuraciones en un solo archivo.
+
+#### **Ejemplo de docker-compose.yml**
+```yaml
+version: '3.8'
+
+services:
+  microfrontend-ventas:
+    build: ./ventas
+    ports:
+      - "3001:80"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - contenedor
+
+  microfrontend-pedidos:
+    build: ./pedidos
+    ports:
+      - "3002:80"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - contenedor
+
+  contenedor:
+    build: ./contenedor
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+```
+
+### **10.3 Pipelines de CI/CD para Microfrontends**
+Se recomienda el uso de GitHub Actions, GitLab CI/CD o Jenkins para automatizar el despliegue y pruebas de los microfrontends. Un pipeline debe incluir:
+- Instalación de dependencias
+- Ejecución de pruebas
+- Construcción del proyecto
+- Publicación de imágenes Docker
+- Despliegue automático en un entorno de producción
+
+#### **Ejemplo de pipeline en GitHub Actions**
+```yaml
+name: Deploy Microfrontend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código fuente
+        uses: actions/checkout@v3
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Instalar dependencias
+        run: npm install --frozen-lockfile
+
+      - name: Ejecutar pruebas
+        run: npm test
+
+      - name: Construir aplicación
+        run: npm run build
+
+      - name: Construir y subir imagen Docker
+        run: |
+          docker build -t my-registry/microfrontend:latest .
+          docker push my-registry/microfrontend:latest
+
+      - name: Desplegar en servidor
+        run: |
+          ssh user@server "docker pull my-registry/microfrontend:latest && docker-compose up -d"
+```
+
+### **10.4 Versionamiento y Estrategias de Rollback**
+Para garantizar estabilidad en el despliegue, se deben aplicar estrategias de versionamiento y rollback.
+
+#### **Estrategias de Versionamiento:**
+- Uso de **Semantic Versioning (SemVer)** en los microfrontends (ejemplo: `1.0.0`, `1.1.0`, `2.0.0`).
+- Mantener al menos dos versiones activas antes de descontinuar una versión anterior.
+
+#### **Estrategias de Rollback:**
+- **Uso de etiquetas en Docker:** Cada versión publicada debe etiquetarse (`1.0.0`, `latest`).
+- **Despliegue de última versión estable:** Si la versión nueva falla, se puede revertir ejecutando:
+  ```sh
+  docker pull my-registry/microfrontend:1.0.0
+  docker-compose up -d
+  ```
+- **Rollback automatizado en CI/CD:** Configurar pipelines para revertir automáticamente en caso de fallo en la implementación.
+
+Con estas estrategias, se garantiza que los microfrontends sean desplegados de manera eficiente y segura.
+
+## **11. Gobernanza por IA en Microfrontends**
+
+### **11.1 Validación de integridad antes del despliegue**
+Antes de desplegar un microfrontend, la inteligencia artificial realizará una validación automatizada para garantizar su estabilidad y compatibilidad dentro del ecosistema de microfrontends. Esta validación incluirá:
+
+- **Revisión de contratos de servicio:** Verificación de las interfaces y comunicación con el contenedor y otros microfronts.
+- **Análisis de dependencias:** Evaluación de bibliotecas utilizadas para evitar conflictos o versiones incompatibles.
+- **Pruebas de integración automatizadas:** Simulación del microfrontend dentro del entorno de producción para detectar fallos antes del despliegue.
+- **Verificación de convenciones de código:** Análisis de estándares de desarrollo, nomenclatura y buenas prácticas en React, TypeScript y Ant Design.
+
+### **11.2 Análisis de cambios estructurales automáticos**
+La IA supervisará continuamente los cambios en la estructura del código y la arquitectura de los microfrontends para detectar y mitigar problemas potenciales. Se aplicarán las siguientes estrategias:
+
+- **Monitoreo de cambios en el repositorio:** Detección de modificaciones en la estructura de carpetas, archivos y configuraciones críticas.
+- **Evaluación de impacto en otros microfronts:** Identificación de dependencias y riesgos asociados a cambios en un microfrontend.
+- **Sugerencias de refactorización:** Propuestas de ajustes para mejorar la modularidad, el rendimiento y la escalabilidad de los componentes.
+- **Registro automático de cambios:** Generación de informes detallados con recomendaciones y acciones a tomar para mantener la integridad del ecosistema.
+
+### **11.3 Optimización y refactorización basada en IA**
+La IA analizará patrones de uso, rendimiento y calidad del código para proponer mejoras continuas en los microfrontends. Se implementarán las siguientes funcionalidades:
+
+- **Identificación de código redundante:** Detección de lógica duplicada y sugerencias para su consolidación en librerías compartidas.
+- **Optimización de carga y rendimiento:** Análisis de tiempos de carga, renderizado y uso de recursos para recomendar estrategias de mejora.
+- **Refactorización automatizada:** Aplicación de patrones de diseño y optimización de código para garantizar una arquitectura eficiente y mantenible.
+- **Mejoras en la experiencia de usuario (UX):** Evaluación de interacción y accesibilidad para garantizar una interfaz intuitiva y fluida.
+
+Con estas estrategias, la gobernanza por IA en microfrontends garantizará una implementación segura, optimizada y alineada con las mejores prácticas de desarrollo moderno.
+
+
+
+
 
 
 
