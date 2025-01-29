@@ -78,13 +78,13 @@
 - **9.3** Uso de tracing distribuido con Jaeger  
 - **9.4** Alertas y monitoreo en tiempo real (incluye auditoría de errores críticos con Kafka)  
 
-## 🔠 Despliegue y CI/CD  
+## 10 Despliegue y CI/CD  
 - **10.1** Contenerización con Docker  
 - **10.2** Orquestación con Kubernetes  
 - **10.3** Pipelines de CI/CD con validaciones automáticas  
 - **10.4** Estrategias de rollback y actualización  
 
-## 1️⃣1️ Gobernanza por IA en Microservicios  
+## 1️⃣1️⃣ Gobernanza por IA en Microservicios  
 - **11.1** Validación automática de contratos y código antes de implementación  
 - **11.2** Análisis de patrones y detección de anomalías  
 - **11.3** Sugerencias de optimización y refactorización  
@@ -1085,5 +1085,750 @@ export class RolGuard implements CanActivate {
 }
 ```
 
-📌 **Estas políticas aseguran que el acceso a las APIs esté correctamente controlado y protegido.** 🚀
+# ✨ **7. Desarrollo y Estructura de Código**
+
+## 🌟 **7.1 Estructura de Carpetas y Organización del Código**
+
+Cada microservicio debe seguir una organización estandarizada para garantizar la mantenibilidad, escalabilidad y modularidad. La estructura básica recomendada es la siguiente:
+
+```plaintext
+📂 microservicios/
+│── 📂 <nombre_microservicio>/
+│   ├── 📂 src/
+│   │   ├── 📂 aplicacion/      # Casos de uso y servicios de aplicación
+│   │   ├── 📂 dominio/         # Entidades y lógica de dominio
+│   │   ├── 📂 infraestructura/
+│   │   │   ├── 📂 controladores/     # Controladores HTTP
+│   │   │   ├── 📂 repositorios/      # Implementaciones de repositorio (TypeORM)
+│   │   │   ├── 📂 eventos/           # Publicación y suscripción de eventos (Kafka)
+│   │   │   ├── 📂 adaptadores/       # Adaptadores para integraciones externas
+│   │   │   ├── 📂 configuracion/     # Configuración de base de datos, Kafka, etc.
+│   │   ├── 📂 compartido/            # Utilidades, DTOs, validaciones, decoradores
+│   │   ├── main.ts                   # Punto de entrada del microservicio
+│   │   ├── app.module.ts              # Módulo principal de NestJS
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── Dockerfile
+│   ├── .env
+```
+
+### **Reglas de Organización**
+- Cada **módulo debe estar bien definido** dentro de su capa (aplicación, dominio, infraestructura).
+- **Los controladores solo deben manejar la capa de infraestructura** y delegar la lógica a la capa de aplicación.
+- **Los eventos deben gestionarse en archivos separados** y estar documentados.
+- **Cada módulo debe contar con sus propias pruebas unitarias e integración.**
+
+---
+
+## 🌟 **7.2 Separación de Capas Dentro del Microservicio**
+
+Cada microservicio debe seguir una estructura **bien definida y modular**, siguiendo el patrón de **Arquitectura Hexagonal (Ports & Adapters)**.
+
+### **Capa de Aplicación**
+- Contiene la **lógica de negocio** y los **casos de uso**.
+- Implementa la **orquestación** de los procesos y llamadas a otros servicios.
+- **Ejemplo:**
+
+```typescript
+export class CrearUsuarioCasoUso {
+  constructor(private readonly usuarioRepositorio: IUsuarioRepositorio) {}
+
+  async ejecutar(dto: CrearUsuarioDto): Promise<Usuario> {
+    const usuario = new Usuario(dto.nombre, dto.email);
+    return await this.usuarioRepositorio.guardar(usuario);
+  }
+}
+```
+
+### **Capa de Dominio**
+- Define las **entidades y agregados** del negocio.
+- Contiene las **reglas de validación** de negocio.
+- **Ejemplo:**
+
+```typescript
+export class Usuario {
+  constructor(
+    public readonly nombre: string,
+    public readonly email: string
+  ) {
+    if (!email.includes('@')) {
+      throw new Error('El email no es válido');
+    }
+  }
+}
+```
+
+### **Capa de Infraestructura**
+- Implementa la comunicación con **bases de datos, APIs externas y eventos**.
+- Contiene los **repositorios, controladores y adaptadores**.
+- **Ejemplo:**
+
+```typescript
+@Controller('usuarios')
+export class UsuarioController {
+  constructor(private readonly crearUsuarioCasoUso: CrearUsuarioCasoUso) {}
+
+  @Post()
+  async crear(@Body() dto: CrearUsuarioDto) {
+    return this.crearUsuarioCasoUso.ejecutar(dto);
+  }
+}
+```
+
+---
+
+## 🌟 **7.3 Uso de DTOs y Validaciones con Class Validator**
+
+Los DTOs (Data Transfer Objects) se utilizan para definir **las estructuras de datos esperadas en las solicitudes**. Se implementan con `class-validator` para validar los datos antes de su procesamiento.
+
+### **Ejemplo de DTO con Validaciones**
+```typescript
+import { IsEmail, IsNotEmpty, Length } from 'class-validator';
+
+export class CrearUsuarioDto {
+  @IsNotEmpty({ message: 'El nombre es obligatorio' })
+  @Length(3, 50, { message: 'El nombre debe tener entre 3 y 50 caracteres' })
+  nombre: string;
+
+  @IsEmail({}, { message: 'El email debe ser válido' })
+  email: string;
+}
+```
+
+---
+
+## 🌟 **7.4 Implementación de Pruebas Unitarias y de Integración**
+
+Es obligatorio que cada microservicio tenga pruebas automatizadas para garantizar su estabilidad. Se utilizan **Jest y Supertest** en NestJS.
+
+### **Ejemplo de Prueba Unitaria**
+```typescript
+describe('UsuarioService', () => {
+  let usuarioService: UsuarioService;
+  let usuarioRepo: IUsuarioRepositorio;
+
+  beforeEach(() => {
+    usuarioRepo = new UsuarioRepositorioMock();
+    usuarioService = new UsuarioService(usuarioRepo);
+  });
+
+  it('debería crear un usuario correctamente', async () => {
+    const resultado = await usuarioService.crear({ nombre: 'Juan', email: 'juan@example.com' });
+    expect(resultado).toHaveProperty('id');
+  });
+});
+```
+
+### **Ejemplo de Prueba de Integración con Supertest**
+```typescript
+import * as request from 'supertest';
+
+it('debería crear un usuario válido', async () => {
+  const response = await request(app.getHttpServer())
+    .post('/usuarios')
+    .send({ nombre: 'Juan', email: 'juan@example.com' });
+
+  expect(response.status).toBe(201);
+  expect(response.body).toHaveProperty('id');
+});
+```
+
+---
+
+## 🌟 **7.5 Seguridad en la Manipulación de Datos**
+
+Para garantizar la seguridad, cada microservicio debe aplicar:
+
+✅ **Protección contra Inyección SQL:** Uso de ORM seguro (`TypeORM`).
+✅ **Encriptación de Datos Sensibles:** Uso de `bcrypt` para contraseñas.
+✅ **Validación y Sanitización de Entradas:** Uso de `class-validator`.
+✅ **Autenticación y Autorización:** Uso de JWT y RBAC (Role-Based Access Control).
+
+### **Ejemplo de Hashing de Contraseña**
+```typescript
+import * as bcrypt from 'bcrypt';
+
+/**
+ * Genera un hash seguro para una contraseña.
+ * 
+ * @param contraseña - La contraseña en texto plano que se desea encriptar.
+ * @returns La contraseña encriptada con un hash seguro.
+ */
+export async function encriptarContraseña(contraseña: string): Promise<string> {
+  const sal = await bcrypt.genSalt(10);
+  return await bcrypt.hash(contraseña, sal);
+}
+
+```
+
+---
+# 🛡️ **8. Seguridad y Gobernanza de Microservicios**
+
+## **8.1 Políticas de Autenticación y Autorización (OAuth2, JWT)**
+La seguridad en los microservicios es fundamental para garantizar el acceso controlado a los recursos. Se deben implementar mecanismos de autenticación y autorización con estándares de la industria:
+
+### 🔹 **Autenticación con OAuth2 y JWT**
+- **OAuth2**: Protocolo de autorización que permite delegar el acceso a recursos sin compartir credenciales.
+- **JWT (JSON Web Token)**: Se usa para portar la identidad del usuario en un formato seguro.
+- **Flujo de Autenticación**:
+  1. El usuario inicia sesión con credenciales válidas.
+  2. Se genera un **JWT** con información del usuario y permisos.
+  3. El JWT es enviado en cada petición HTTP en el encabezado `Authorization: Bearer <token>`.
+  4. Los microservicios validan el JWT antes de conceder acceso.
+
+### 🔹 **Estrategias de Autorización**
+- **RBAC (Role-Based Access Control)**: Control de acceso basado en roles asignados a los usuarios.
+- **ABAC (Attribute-Based Access Control)**: Control basado en atributos del usuario y contexto.
+- **Scopes**: Se usan en OAuth2 para definir los permisos específicos en los endpoints.
+
+Ejemplo de Middleware de validación de JWT en **NestJS**:
+```typescript
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+
+/**
+ * Guardia de autenticación basada en JWT.
+ * 
+ * Verifica si la solicitud contiene un token JWT válido y lo decodifica.
+ */
+@Injectable()
+export class GuardiaAutenticacionJwt implements CanActivate {
+  constructor(private readonly servicioJwt: JwtService) {}
+
+  /**
+   * Determina si una solicitud puede ser procesada según la autenticación JWT.
+   * 
+   * @param contexto - El contexto de ejecución de la solicitud.
+   * @returns `true` si el token es válido, `false` en caso contrario.
+   */
+  canActivate(contexto: ExecutionContext): boolean {
+    const solicitud = contexto.switchToHttp().getRequest();
+    const token = solicitud.headers.authorization?.split(' ')[1];
+
+    if (!token) return false;
+
+    try {
+      const decodificado = this.servicioJwt.verify(token);
+      solicitud.usuario = decodificado;
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+}
+
+```
+---
+
+## **8.2 Seguridad en la Comunicación entre Microservicios**
+Para proteger la comunicación entre microservicios, se implementan las siguientes prácticas:
+
+### 🔹 **Uso de HTTPS y TLS**
+- Todo el tráfico entre microservicios debe ser cifrado con **TLS 1.2+**.
+- Se deben usar certificados **autofirmados o gestionados por una autoridad confiable**.
+
+### 🔹 **Autenticación Mutua (mTLS)**
+- Se recomienda el uso de **mTLS (Mutual TLS)** para verificar la identidad de los microservicios.
+
+### 🔹 **Firmado de Mensajes**
+- Los mensajes intercambiados entre microservicios deben incluir firmas digitales para verificar su autenticidad.
+
+### 🔹 **Firewall de Aplicación (WAF)**
+- Se deben implementar reglas para detectar y bloquear solicitudes maliciosas.
+
+Ejemplo de configuración de **mTLS en NestJS**:
+```typescript
+import * as https from 'https';
+const httpsAgent = new https.Agent({
+  cert: fs.readFileSync('path/cert.pem'),
+  key: fs.readFileSync('path/key.pem'),
+  ca: fs.readFileSync('path/ca.pem'),
+  rejectUnauthorized: true,
+});
+```
+---
+
+## **8.3 Uso de API Gateway para Control de Acceso**
+Un **API Gateway** centraliza la seguridad y el acceso a los microservicios.
+
+### 🔹 **Beneficios del API Gateway**
+✅ Controla el acceso a los microservicios con autenticación y autorización.
+✅ Aplica reglas de **rate-limiting y CORS**.
+✅ Filtra y audita las solicitudes entrantes.
+✅ Centraliza el monitoreo y logging de las peticiones.
+
+### 🔹 **Ejemplo de API Gateway con Kong**
+```yaml
+_format_version: '1.1'
+services:
+  - name: api-usuarios
+    url: http://microservicio-usuarios:3000
+    routes:
+      - name: ruta-usuarios
+        paths:
+          - /api/v1/usuarios
+        methods:
+          - GET
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+
+```
+---
+
+## **8.4 Implementación de CORS y Rate Limiting**
+### 🔹 **CORS (Cross-Origin Resource Sharing)**
+- Se debe configurar **CORS** para restringir qué dominios pueden acceder a la API.
+- Se recomienda solo permitir solicitudes desde orígenes confiables.
+
+Ejemplo de configuración en **NestJS**:
+```typescript
+app.enableCors({
+  origin: ['https://dominio-seguro.com'],
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+});
+```
+
+### 🔹 **Rate Limiting**
+- Se debe limitar la cantidad de solicitudes permitidas por usuario/IP.
+- Se recomienda usar `express-rate-limit` en Node.js.
+
+Ejemplo:
+```typescript
+import rateLimit from 'express-rate-limit';
+
+// Configuración del limitador de peticiones
+const limitador = rateLimit({
+  windowMs: 15 * 60 * 1000, // Ventana de tiempo de 15 minutos
+  max: 100, // Máximo de 100 peticiones permitidas por IP dentro del período
+});
+
+// Aplicar el limitador a todas las solicitudes
+app.use(limitador);
+
+```
+---
+
+## **8.5 Encriptación de Datos Sensibles**
+Los datos sensibles deben protegerse en **tránsito y en reposo**.
+
+### 🔹 **Cifrado en Tránsito**
+- Todo tráfico entre microservicios debe pasar por **HTTPS/TLS**.
+- Se deben usar **protocolos seguros (TLS 1.2 o superior)**.
+
+### 🔹 **Cifrado en Reposo**
+- Se deben cifrar datos críticos como contraseñas y tokens de acceso.
+- Uso de algoritmos de cifrado como **AES-256**.
+
+Ejemplo de cifrado de datos con **bcrypt** en NestJS:
+```typescript
+import * as bcrypt from 'bcrypt';
+const rondasDeSal = 10; // Número de rondas para generar la sal
+// Generar un hash de la contraseña
+const contraseñaEncriptada = await bcrypt.hash('password123', rondasDeSal);
+console.log(contraseñaEncriptada); // Imprimir la contraseña encriptada en la consola
+
+```
+---
+
+## **8.6 Restricción de Mensajes de Error Expuestos**
+Para evitar fugas de información, los mensajes de error deben estar controlados.
+
+### 🔹 **Buenas Prácticas**
+✅ No devolver trazas completas en los errores de producción.
+✅ Estandarizar los mensajes de error sin exponer información interna.
+✅ Implementar logs internos para capturar detalles técnicos sin exponerlos al usuario.
+
+Ejemplo de Middleware de Manejo de Errores en **NestJS**:
+```typescript
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException } from '@nestjs/common';
+
+@Catch(HttpException)
+export class FiltroExcepcionesPersonalizado implements ExceptionFilter {
+  catch(excepcion: HttpException, host: ArgumentsHost) {
+    const contexto = host.switchToHttp();
+    const respuesta = contexto.getResponse();
+
+    respuesta.status(excepcion.getStatus()).json({
+      codigoHttp: excepcion.getStatus(),
+      mensaje: 'Ha ocurrido un error, por favor contacta al soporte.',
+    });
+  }
+}
+
+```
+--- 
+## ➕ **9. Estrategias de Observabilidad y Monitoreo**
+
+La observabilidad y el monitoreo son fundamentales en arquitecturas de microservicios para garantizar la detección temprana de problemas, la optimización del rendimiento y la auditoría de eventos críticos. Se implementan estrategias de **logging, métricas, tracing distribuido y alertas en tiempo real**.
+
+---
+
+### 🔢 **9.1 Logging Estructurado y Centralizado**
+
+**Objetivo:** Garantizar que los registros sean **estructurados, centralizados y auditables** para facilitar la detección de problemas y la trazabilidad de eventos.
+
+**Requisitos:**
+- Uso de **Winston** para centralizar logs en formato **JSON**.
+- Inclusión de **ID de transacción, usuario, estado HTTP y datos de entrada/salida** en cada log.
+- **Rotación de archivos** para evitar consumo excesivo de almacenamiento.
+- Almacenamiento en un **servidor central de logs (ELK Stack, Graylog, Loki)**.
+
+**Ejemplo de Log JSON estructurado:**
+```json
+{
+  "idTransaccion": "abc123",
+  "aplicacion": "ms_usuarios",
+  "url": "/api/v1/usuarios",
+  "metodo": "POST",
+  "estadoHttp": 400,
+  "usuario": "usuario_456",
+  "fechaHora": "2025-01-28T12:45:00Z",
+  "datosEntrada": "{\"nombre\":\"Juan\",\"email\":\"juan@correo.com\"}",
+  "datosSalida": "{\"mensaje\":\"El campo email es obligatorio\"}"
+}
+```
+
+**Integración con ELK (Elasticsearch, Logstash, Kibana):**
+```yaml
+logstash:
+  image: docker.elastic.co/logstash/logstash:7.10.0
+  volumes:
+    - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+```
+
+---
+
+### 🔄 **9.2 Implementación de Métricas con Prometheus y Grafana**
+
+**Objetivo:** Capturar y visualizar métricas clave de rendimiento en los microservicios.
+
+**Métricas obligatorias:**
+- **Uso de CPU y memoria** de cada microservicio.
+- **Cantidad de peticiones HTTP** por endpoint.
+- **Latencia promedio** de las solicitudes.
+- **Errores 4xx y 5xx** por servicio.
+
+**Configuración en NestJS con `prom-client`:**
+```typescript
+import * as client from 'prom-client';
+const httpRequestDurationMicroseconds = new client.Histogram({
+  name: 'http_request_duration_ms',
+  help: 'Duración de las peticiones HTTP en milisegundos',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [50, 100, 200, 300, 400, 500],
+});
+```
+
+**Integración con Prometheus (`prometheus.yml`)**:
+```yaml
+scrape_configs:
+  - job_name: 'microservicio_usuarios'
+    static_configs:
+      - targets: ['ms-usuarios:9100']
+```
+
+**Visualización con Grafana:**
+```yaml
+grafana:
+  image: grafana/grafana:7.3.1
+  ports:
+    - '3000:3000'
+  volumes:
+    - ./grafana/provisioning/:/etc/grafana/provisioning/
+```
+
+---
+
+### 👁 **9.3 Uso de Tracing Distribuido con Jaeger**
+
+**Objetivo:** Permitir la trazabilidad de las solicitudes en un entorno de microservicios.
+
+**Implementación:**
+- Uso de **Jaeger** para analizar tiempos de ejecución de cada servicio.
+- Identificación de **cuellos de botella** y demoras en la comunicación entre microservicios.
+- Inclusión de **ID de traza** en todas las solicitudes HTTP y eventos Kafka.
+
+**Configuración de OpenTelemetry con Jaeger en NestJS:**
+```typescript
+import { NodeTracerProvider } from '@opentelemetry/node';
+import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
+
+const provider = new NodeTracerProvider();
+provider.addSpanProcessor(new SimpleSpanProcessor(new JaegerExporter({
+  serviceName: 'ms-usuarios',
+  endpoint: 'http://jaeger:14268/api/traces'
+})));
+provider.register();
+```
+
+**Ejemplo de Trazabilidad en Jaeger:**
+```
+Microservicio A -> Kafka -> Microservicio B -> Base de Datos
+```
+
+**Integración con Docker:**
+```yaml
+jaeger:
+  image: jaegertracing/all-in-one:1.27
+  ports:
+    - '16686:16686' # UI de Jaeger
+    - '14268:14268' # Endpoint HTTP
+```
+
+---
+
+### 🚒 **9.4 Alertas y Monitoreo en Tiempo Real**
+
+**Objetivo:** Detectar y notificar problemas en producción antes de que impacten a los usuarios.
+
+**Alertas críticas:**
+- Errores **HTTP 5xx** por encima de un umbral.
+- Tiempos de respuesta mayores a **500ms** en endpoints críticos.
+- **Consumo de memoria > 80%** en algún servicio.
+
+**Uso de AlertManager con Prometheus:**
+```yaml
+route:
+  receiver: 'slack-notifications'
+  group_wait: 10s
+  repeat_interval: 1h
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: '#alertas'
+        send_resolved: true
+```
+
+**Auditoría de errores críticos con Kafka:**
+```typescript
+import { Kafka } from 'kafkajs';
+
+const kafka = new Kafka({ brokers: ['kafka:9092'] });
+const producer = kafka.producer();
+await producer.connect();
+await producer.send({
+  topic: 'errores-criticos',
+  messages: [{
+    key: 'error500',
+    value: JSON.stringify({ servicio: 'ms-usuarios', mensaje: 'Fallo en base de datos' })
+  }],
+});
+```
+
+**Visualización de alertas en Grafana:**
+- Integración con **Slack, Teams o correo electrónico**.
+- Notificaciones automáticas al equipo de DevOps.
+
+---
+
+## ✅ **Conclusión**
+
+🚀 **Beneficios de estas estrategias:**
+- **Detección rápida** de problemas y anomalías.
+- **Monitoreo proactivo** de microservicios.
+- **Alertas automatizadas** antes de que ocurra una falla grave.
+- **Optimización del rendimiento** basado en métricas reales.
+- **Auditoría centralizada** con logs y trazabilidad de eventos.
+ 
+## 10 Despliegue y CI/CD
+
+### 10.1 Contenerización con Docker
+La contenerización con **Docker** permite empaquetar cada microservicio con todas sus dependencias, asegurando la portabilidad y consistencia del entorno de ejecución.
+
+#### **Principales consideraciones:**
+- Cada microservicio debe incluir un **Dockerfile** optimizado.
+- Se deben utilizar **multi-stage builds** para reducir el tamaño de las imágenes.
+- Las configuraciones deben manejarse mediante **variables de entorno** y archivos `.env`.
+
+#### **Ejemplo de Dockerfile para un microservicio en NestJS:**
+```dockerfile
+# Etapa de compilación
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --only=production
+COPY . .
+RUN npm run build
+
+# Etapa de ejecución
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=builder /app .
+CMD ["node", "dist/main.js"]
+```
+
+### 10.2 Orquestación con Docker Compose
+Dado que no utilizaremos Kubernetes por el momento, se empleará **Docker Compose** para la orquestación de los servicios.
+
+#### **Principales características:**
+- Definir todos los microservicios y dependencias en un único archivo `docker-compose.yml`.
+- Uso de **volúmenes** y **redes** para la comunicación entre contenedores.
+- Definir estrategias de reinicio y escalabilidad básica.
+
+#### **Ejemplo de `docker-compose.yml`:**
+```yaml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    container_name: db_postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mi_basededatos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  microservicio-usuarios:
+    build: ./usuarios
+    container_name: ms_usuarios
+    environment:
+      DATABASE_URL: postgres://user:password@postgres:5432/mi_basededatos
+    depends_on:
+      - postgres
+    ports:
+      - "3000:3000"
+    networks:
+      - microservicios
+
+volumes:
+  postgres_data:
+
+networks:
+  microservicios:
+    driver: bridge
+```
+
+### 10.3 Pipelines de CI/CD con validaciones automáticas
+Se establecerán **pipelines de integración y despliegue continuo** para garantizar que el código pase por pruebas y validaciones antes de ser desplegado en producción.
+
+#### **Herramientas recomendadas:**
+- **GitHub Actions** / **GitLab CI/CD** para la automatización de pipelines.
+- **SonarQube** para análisis de calidad de código.
+- **ESLint y Prettier** para mantener consistencia en el código.
+- **Test unitarios y de integración** con Jest o Mocha.
+
+#### **Ejemplo de GitHub Actions para un microservicio:**
+```yaml
+name: CI/CD Pipeline
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+      - name: Instalar dependencias
+        run: npm install
+      - name: Ejecutar pruebas
+        run: npm test
+      - name: Construir imagen Docker
+        run: docker build -t mi-microservicio .
+```
+
+### 10.4 Estrategias de rollback y actualización
+Para garantizar estabilidad en los despliegues, se implementarán estrategias de **rollback y actualización gradual**.
+
+#### **Estrategias de rollback:**
+- Uso de **versionado de imágenes Docker** (`latest` no debe usarse en producción).
+- Implementación de **mecanismos de rollback en CI/CD**.
+- Monitoreo con **logs estructurados** y **alertas en Prometheus**.
+
+#### **Estrategia de actualización gradual:**
+- **Blue-Green Deployment:** Se mantienen dos versiones activas y se cambia el tráfico progresivamente.
+- **Rolling Updates:** Se actualizan contenedores gradualmente sin afectar la disponibilidad.
+- **Feature Flags:** Se activan nuevas funcionalidades en producción sin necesidad de un despliegue completo.
+
+#### **Ejemplo de rollback manual con Docker Compose:**
+```bash
+docker-compose down
+docker-compose pull
+docker-compose up -d
+```
+
+📌 **Conclusión:**
+El despliegue de microservicios con **Docker Compose** permite una gestión eficiente, con validaciones automatizadas y estrategias de rollback seguras. A medida que la infraestructura crezca, se podrá considerar la migración a Kubernetes para una mayor escalabilidad.
+
+## 1️⃣1️⃣ Gobernanza por IA en Microservicios
+
+### **11.1 Validación automática de contratos y código antes de implementación**
+La gobernanza por IA debe garantizar que cada microservicio cumpla con los lineamientos definidos en esta documentación antes de ser implementado en el entorno productivo. Para ello, se establecerán procesos de validación automatizada que incluyen:
+- Revisión de **contratos de API** para verificar que cumplan con los estándares definidos.
+- Análisis de **estructura de código** en base a reglas de linting y convenciones de nomenclatura.
+- Validación de dependencias y versiones para evitar conflictos entre microservicios.
+- Ejecución de pruebas automatizadas para garantizar que la implementación no introduce errores.
+
+🚀 **Beneficios:**
+✔ Prevención de errores antes del despliegue.
+✔ Consistencia en el diseño de microservicios.
+✔ Automatización del control de calidad.
+
+---
+
+### **11.2 Análisis de patrones y detección de anomalías**
+La IA analizará patrones de uso y comportamiento en los microservicios para identificar anomalías o comportamientos inesperados. Se implementarán:
+- **Monitoreo en tiempo real** de logs y métricas para identificar patrones de errores recurrentes.
+- **Modelos de machine learning** para detectar tendencias inusuales en la ejecución de servicios.
+- **Alertas automatizadas** cuando se detecten fallos o riesgos de rendimiento en el sistema.
+- Integración con **Prometheus y Grafana** para visualizar métricas y comportamientos anómalos.
+
+🚀 **Beneficios:**
+✔ Identificación temprana de problemas.
+✔ Mejora continua de la estabilidad del sistema.
+✔ Análisis predictivo para optimizar la infraestructura.
+
+---
+
+### **11.3 Sugerencias de optimización y refactorización**
+La IA proporcionará recomendaciones para optimizar el código y mejorar la eficiencia de los microservicios. Entre las acciones que se automatizarán se incluyen:
+- **Análisis de código** para detectar redundancias y oportunidades de refactorización.
+- **Optimización de consultas SQL** para mejorar el rendimiento de base de datos.
+- **Evaluación de consumo de recursos** para reducir el uso innecesario de memoria y CPU.
+- **Sugerencias de desacoplamiento** en microservicios para mejorar la modularidad.
+
+🚀 **Beneficios:**
+✔ Código más eficiente y mantenible.
+✔ Reducción del consumo de recursos.
+✔ Mejor estructuración de microservicios.
+
+---
+
+### **11.4 Registro de cambios estructurales y mejoras**
+Cada cambio en la arquitectura o implementación de un microservicio deberá ser registrado y documentado para garantizar la trazabilidad y control de versiones. Se implementará:
+- **Historial de cambios estructurales**, documentando qué modificaciones se realizaron y por qué.
+- **Versionado automático** de contratos y configuraciones.
+- **Registro de cambios en una base centralizada**, accesible para el equipo de arquitectura y desarrollo.
+- **Generación automática de reportes** con las mejoras implementadas.
+
+🚀 **Beneficios:**
+✔ Mayor transparencia en los cambios del sistema.
+✔ Facilita la auditoría y gobernanza de los microservicios.
+✔ Mejora la trazabilidad y control de versiones.
+
+---
+
+### **11.5 Envío Asíncrono de Logs y Auditoría**
+La gobernanza incluirá la capacidad de registrar eventos relevantes de cada microservicio de forma asincrónica para evitar afectaciones en el rendimiento. Para ello, se implementará:
+- **Kafka** para la recolección de logs en tiempo real sin afectar la ejecución del microservicio.
+- **Centralización de logs en Elasticsearch**, con visualización en Kibana para análisis posterior.
+- **Alertas en tiempo real** ante eventos críticos o violaciones de seguridad.
+- **Reglas de auditoría automatizadas**, detectando cambios estructurales o accesos no autorizados.
+
+🚀 **Beneficios:**
+✔ Mejor control de seguridad y cumplimiento.
+✔ Reducción del impacto en el rendimiento del microservicio.
+✔ Trazabilidad de eventos críticos en el sistema.
+
+---
+
+📌 **Conclusión:** La implementación de gobernanza por IA en microservicios garantizará la estandarización, seguridad y optimización del ecosistema, asegurando que cada implementación siga las mejores prácticas y se mantenga alineada con la arquitectura definida.
 
